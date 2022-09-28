@@ -2071,6 +2071,20 @@ decode QUADRANT default Unknown::unknown() {
                     0x29: vsra_vv({{
                         Vd_vi[i] = Vs2_vi[i] >> (Vs1_vu[i] & (sew - 1));
                     }}, OPIVV, VectorDummyOp);
+                    0x2a: vssrl_vv({{
+                        int sh = Vs1_vu[i] & (sew - 1);
+                        __uint128_t val = Vs2_vu[i];
+
+                        val = int_rounding<__uint128_t>(val, xc->readMiscReg(MISCREG_VXRM), sh);
+                        Vd_vu[i] = val >> sh;
+                    }}, OPIVV, VectorDummyOp);
+                    0x2b: vssra_vv({{
+                        int sh = Vs1_vi[i] & (sew - 1);
+                        __int128_t val = Vs2_vi[i];
+
+                        val = int_rounding<__int128_t>(val, xc->readMiscReg(MISCREG_VXRM), sh);
+                        Vd_vi[i] = val >> sh;
+                    }}, OPIVV, VectorDummyOp);
                 }
                 format VectorIntMaskFormat {
                     0x11: decode VM {
@@ -2434,6 +2448,16 @@ decode QUADRANT default Unknown::unknown() {
                                             ftype<et>(Vs3_vu[i]));
                         Vd_vu[i] = fd.v;
                     }}, OPFVV, VectorDummyOp);
+                    0x31: VectorReduceFloatWideningFormat::vfwredusum_vs({{
+                        Vd_vwu[0] = reduce_loop([](const vwu& src1, const vu& src2) {
+                            return fadd<ewt>(ftype<ewt>(src1), f_to_wf<et>(ftype<et>(src2)));
+                        }, Vs1_vwu, Vs2_vu);
+                    }}, OPFVV, VectorDummyOp);
+                    0x33: VectorReduceFloatWideningFormat::vfwredosum_vs({{
+                        Vd_vwu[0] = reduce_loop([](const vwu& src1, const vu& src2) {
+                            return fadd<ewt>(ftype<ewt>(src1), f_to_wf<et>(ftype<et>(src2)));
+                        }, Vs1_vwu, Vs2_vu);
+                    }}, OPFVV, VectorDummyOp);
                 }
                 format VectorFloatWideningFormat {
                     0x30: vfwadd_vv({{
@@ -2589,6 +2613,11 @@ decode QUADRANT default Unknown::unknown() {
                             Vd_vi[i] = Vs2_vext[i + offset];
                         }}, OPMVV, VectorDummyOp);
                     }
+                }
+                0x14: decode RS1 {
+                    0x11: VectorIntFormat::vid_v({{
+                        Vd_vu[i] = ei;
+                    }}, OPMVV, VectorDummyOp);
                 }
                 format VectorMaskFormat {
                     0x18: vmandn_mm({{
@@ -2835,6 +2864,13 @@ decode QUADRANT default Unknown::unknown() {
                     0x29: vsra_vi({{
                         Vd_vi[i] = Vs2_vi[i] >> ((vu)SIMM5 & (sew - 1) & 0x1f);
                     }}, OPIVI, VectorDummyOp);
+                    0x2b: vssra_vi({{
+                        int sh = SIMM5 & (sew - 1);
+                        __int128_t val = Vs2_vi[i];
+
+                        val = int_rounding<__int128_t>(val, xc->readMiscReg(MISCREG_VXRM), sh);
+                        Vd_vi[i] = val >> sh;
+                    }}, OPIVI, VectorDummyOp);
                 }
                 // According to Spec Section 16.6,
                 // vm must be 1 (unmasked) in vmv<nr>r.v instructions.
@@ -3051,6 +3087,20 @@ decode QUADRANT default Unknown::unknown() {
                     0x29: vsra_vx({{
                         Vd_vi[i] = Vs2_vi[i] >> (Rs1_vu & (sew - 1));
                     }}, OPIVX, VectorDummyOp);
+                    0x2a: vssrl_vx({{
+                        int sh = Rs1_vu & (sew - 1);
+                        __uint128_t val = Vs2_vu[i];
+
+                        val = int_rounding<__uint128_t>(val, xc->readMiscReg(MISCREG_VXRM), sh);
+                        Vd_vu[i] = val >> sh;
+                    }}, OPIVX, VectorDummyOp);
+                    0x2b: vssra_vx({{
+                        int sh = Rs1_vu & (sew - 1);
+                        __int128_t val = Vs2_vi[i];
+
+                        val = int_rounding<__int128_t>(val, xc->readMiscReg(MISCREG_VXRM), sh);
+                        Vd_vi[i] = val >> sh;
+                    }}, OPIVX, VectorDummyOp);
                 }
                 format VectorIntNarrowingFormat {
                     0x2c: vnsrl_wx({{
@@ -3161,44 +3211,52 @@ decode QUADRANT default Unknown::unknown() {
                 format VectorFloatFormat{
                     0x00: vfadd_vf({{
                         auto fd = fadd<et>(ftype<et>(Vs2_vu[i]),
-                                           ftype<et>((vu)Fs1_bits));
+                                           ftype_freg<et>(freg(Fs1_bits)));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x02: vfsub_vf({{
                         auto fd = fsub<et>(ftype<et>(Vs2_vu[i]),
-                                           ftype<et>((vu)Fs1_bits));
+                                           ftype_freg<et>(freg(Fs1_bits)));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x04: vfmin_vf({{
                         auto fd = fmin<et>(ftype<et>(Vs2_vu[i]),
-                                           ftype<et>((vu)Fs1_bits));
+                                           ftype_freg<et>(freg(Fs1_bits)));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x06: vfmax_vf({{
                         auto fd = fmax<et>(ftype<et>(Vs2_vu[i]),
-                                           ftype<et>((vu)Fs1_bits));
+                                           ftype_freg<et>(freg(Fs1_bits)));
                             Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x08: vfsgnj_vf({{
                         Vd_vu[i] = fsgnj<et>(ftype<et>(Vs2_vu[i]),
-                                             ftype<et>((vu)Fs1_bits),
+                                             ftype_freg<et>(freg(Fs1_bits)),
                                              false, false).v;
                     }}, OPFVF, VectorDummyOp);
                     0x09: vfsgnjn_vf({{
                         Vd_vu[i] = fsgnj<et>(ftype<et>(Vs2_vu[i]),
-                                             ftype<et>((vu)Fs1_bits),
+                                             ftype_freg<et>(freg(Fs1_bits)),
                                              true, false).v;
                     }}, OPFVF, VectorDummyOp);
                     0x0a: vfsgnjx_vf({{
                         Vd_vu[i] = fsgnj<et>(ftype<et>(Vs2_vu[i]),
-                                             ftype<et>((vu)Fs1_bits),
+                                             ftype_freg<et>(freg(Fs1_bits)),
                                              false, true).v;
                     }}, OPFVF, VectorDummyOp);
+                    0x10: VectorNonSplitFormat::vfmv_s_f({{
+                        auto fd = ftype_freg<et>(freg(Fs1_bits));
+                        Vd_vu[0] = fd.v;
+                    }}, OPFVV, VectorDummyOp);
                     0x17: decode VM {
                         0x0: vfmerge_vfm({{
                             Vd_vu[i] = elem_mask(v0, ei)
-                                    ? ftype<et>((vu)Fs1_bits).v
+                                    ? ftype_freg<et>(freg(Fs1_bits)).v
                                     : Vs2_vu[i];
+                        }}, OPFVF, VectorDummyOp);
+                        0x1: vfmv_v_f({{
+                            auto fd = ftype_freg<et>(freg(Fs1_bits));
+                            Vd_vu[i] = fd.v;
                         }}, OPFVF, VectorDummyOp);
                     }
                 }
@@ -3206,99 +3264,99 @@ decode QUADRANT default Unknown::unknown() {
                     0x18: vmfeq_vf({{
                         Vd_ub[(i + offset)/8] = ASSIGN_VD_BIT(i + offset,
                             feq<et>(ftype<et>(Vs2_vu[i]),
-                                    ftype<et>((vu)Fs1_bits)));
+                                    ftype_freg<et>(freg(Fs1_bits))));
                     }}, OPFVF, VectorFloatOp);
                     0x19: vmfle_vf({{
                         Vd_ub[(i + offset)/8] = ASSIGN_VD_BIT(i + offset,
                             fle<et>(ftype<et>(Vs2_vu[i]),
-                                    ftype<et>((vu)Fs1_bits)));
+                                    ftype_freg<et>(freg(Fs1_bits))));
                     }}, OPFVF, VectorDummyOp);
                     0x1b: vmflt_vf({{
                         Vd_ub[(i + offset)/8] = ASSIGN_VD_BIT(i + offset,
                             flt<et>(ftype<et>(Vs2_vu[i]),
-                                    ftype<et>((vu)Fs1_bits)));
+                                    ftype_freg<et>(freg(Fs1_bits))));
                     }}, OPFVF, VectorDummyOp);
                     0x1c: vmfne_vf({{
                         Vd_ub[(i + offset)/8] = ASSIGN_VD_BIT(i + offset,
                             !feq<et>(ftype<et>(Vs2_vu[i]),
-                                     ftype<et>((vu)Fs1_bits)));
+                                     ftype_freg<et>(freg(Fs1_bits))));
                     }}, OPFVF, VectorDummyOp);
                     0x1d: vmfgt_vf({{
                         Vd_ub[(i + offset)/8] = ASSIGN_VD_BIT(i + offset,
-                            flt<et>(ftype<et>((vu)Fs1_bits),
+                            flt<et>(ftype_freg<et>(freg(Fs1_bits)),
                                     ftype<et>(Vs2_vu[i])));
                     }}, OPFVF, VectorDummyOp);
                     0x1f: vmfge_vf({{
                         Vd_ub[(i + offset)/8] = ASSIGN_VD_BIT(i + offset,
-                            fle<et>(ftype<et>((vu)Fs1_bits),
+                            fle<et>(ftype_freg<et>(freg(Fs1_bits)),
                                     ftype<et>(Vs2_vu[i])));
                     }}, OPFVF, VectorDummyOp);
                 }
                 format VectorFloatFormat{
                     0x20: vfdiv_vf({{
                         auto fd = fdiv<et>(ftype<et>(Vs2_vu[i]),
-                                           ftype<et>((vu)Fs1_bits));
+                                           ftype_freg<et>(freg(Fs1_bits)));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x21: vfrdiv_vf({{
-                        auto fd = fdiv<et>(ftype<et>((vu)Fs1_bits),
+                        auto fd = fdiv<et>(ftype_freg<et>(freg(Fs1_bits)),
                                            ftype<et>(Vs2_vu[i]));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x24: vfmul_vf({{
                         auto fd = fmul<et>(ftype<et>(Vs2_vu[i]),
-                                           ftype<et>((vu)Fs1_bits));
+                                           ftype_freg<et>(freg(Fs1_bits)));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x27: vfrsub_vf({{
-                        auto fd = fsub<et>(ftype<et>((vu)Fs1_bits),
+                        auto fd = fsub<et>(ftype_freg<et>(freg(Fs1_bits)),
                                            ftype<et>(Vs2_vu[i]));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x28: vfmadd_vf({{
                         auto fd = fmadd<et>(ftype<et>(Vs3_vu[i]),
-                                            ftype<et>((vu)Fs1_bits),
+                                            ftype_freg<et>(freg(Fs1_bits)),
                                             ftype<et>(Vs2_vu[i]));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x29: vfnmadd_vf({{
                         auto fd = fmadd<et>(fneg(ftype<et>(Vs3_vu[i])),
-                                            ftype<et>((vu)Fs1_bits),
+                                            ftype_freg<et>(freg(Fs1_bits)),
                                             fneg(ftype<et>(Vs2_vu[i])));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x2a: vfmsub_vf({{
                         auto fd = fmadd<et>(ftype<et>(Vs3_vu[i]),
-                                            ftype<et>((vu)Fs1_bits),
+                                            ftype_freg<et>(freg(Fs1_bits)),
                                             fneg(ftype<et>(Vs2_vu[i])));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x2b: vfnmsub_vf({{
                         auto fd = fmadd<et>(fneg(ftype<et>(Vs3_vu[i])),
-                                            ftype<et>((vu)Fs1_bits),
+                                            ftype_freg<et>(freg(Fs1_bits)),
                                             ftype<et>(Vs2_vu[i]));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x2c: vfmacc_vf({{
-                        auto fd = fmadd<et>(ftype<et>((vu)Fs1_bits),
+                        auto fd = fmadd<et>(ftype_freg<et>(freg(Fs1_bits)),
                                             ftype<et>(Vs2_vu[i]),
                                             ftype<et>(Vs3_vu[i]));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x2d: vfnmacc_vf({{
-                        auto fd = fmadd<et>(fneg(ftype<et>((vu)Fs1_bits)),
+                        auto fd = fmadd<et>(fneg(ftype_freg<et>(freg(Fs1_bits))),
                                             ftype<et>(Vs2_vu[i]),
                                             fneg(ftype<et>(Vs3_vu[i])));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x2e: vfmsac_vf({{
-                        auto fd = fmadd<et>(ftype<et>((vu)Fs1_bits),
+                        auto fd = fmadd<et>(ftype_freg<et>(freg(Fs1_bits)),
                                             ftype<et>(Vs2_vu[i]),
                                             fneg(ftype<et>(Vs3_vu[i])));
                         Vd_vu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x2f: vfnmsac_vf({{
-                        auto fd = fmadd<et>(fneg(ftype<et>((vu)Fs1_bits)),
+                        auto fd = fmadd<et>(fneg(ftype_freg<et>(freg(Fs1_bits))),
                                             ftype<et>(Vs2_vu[i]),
                                             ftype<et>(Vs3_vu[i]));
                         Vd_vu[i] = fd.v;
@@ -3308,57 +3366,57 @@ decode QUADRANT default Unknown::unknown() {
                     0x30: vfwadd_vf({{
                         auto fd = fadd<ewt>(
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
-                            fwiden(ftype<et>((vu)Fs1_bits)));
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x32: vfwsub_vf({{
                         auto fd = fsub<ewt>(
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
-                            fwiden(ftype<et>((vu)Fs1_bits)));
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x34: vfwadd_wf({{
                         auto fd = fadd<ewt>(
                             ftype<ewt>(Vs2_vwu[i]),
-                            fwiden(ftype<et>((vu)Fs1_bits)));
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x36: vfwsub_wf({{
                         auto fd = fsub<ewt>(
                             ftype<ewt>(Vs2_vwu[i]),
-                            fwiden(ftype<et>((vu)Fs1_bits)));
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x38: vfwmul_vf({{
                         auto fd = fmul<ewt>(
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
-                            fwiden(ftype<et>((vu)Fs1_bits)));
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x3c: vfwmacc_vf({{
                         auto fd = fmadd<ewt>(
-                            fwiden(ftype<et>((vu)Fs1_bits)),
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))),
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
                             ftype<ewt>(Vs3_vwu[i]));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x3d: vfwnmacc_vf({{
                         auto fd = fmadd<ewt>(
-                            fwiden(fneg(ftype<et>((vu)Fs1_bits))),
+                            fwiden(fneg(ftype_freg<et>(freg(Fs1_bits)))),
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
                             fneg(ftype<ewt>(Vs3_vwu[i])));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x3e: vfwmsac_vf({{
                         auto fd = fmadd<ewt>(
-                            fwiden(ftype<et>((vu)Fs1_bits)),
+                            fwiden(ftype_freg<et>(freg(Fs1_bits))),
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
                             fneg(ftype<ewt>(Vs3_vwu[i])));
                         Vd_vwu[i] = fd.v;
                     }}, OPFVF, VectorDummyOp);
                     0x3f: vfwnmsac_vf({{
                         auto fd = fmadd<ewt>(
-                            fwiden(fneg(ftype<et>((vu)Fs1_bits))),
+                            fwiden(fneg(ftype_freg<et>(freg(Fs1_bits)))),
                             fwiden(ftype<et>(Vs2_vu[i + offset])),
                             ftype<ewt>(Vs3_vwu[i]));
                         Vd_vwu[i] = fd.v;
@@ -3377,6 +3435,9 @@ decode QUADRANT default Unknown::unknown() {
                         __uint128_t res = (__uint128_t)Vs2_vi[i] + Rs1_vi;
                         res = int_rounding<__uint128_t>(res, 0 /* TODO */, 1);
                         Vd_vi[i] = res >> 1;
+                    }}, OPMVX, VectorDummyOp);
+                    0x10: VectorNonSplitFormat::vmv_s_x({{ // Special case of OPMVX
+                        Vd_vu[0] = Rs1_vu;
                     }}, OPMVX, VectorDummyOp);
                     0x0a: vasubu_vx({{
                         __uint128_t res = (__uint128_t)Vs2_vu[i] - Rs1_vu;

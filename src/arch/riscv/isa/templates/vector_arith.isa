@@ -202,8 +202,7 @@ Fault
         return std::make_shared<IllegalInstFault>("VILL is set", machInst);
 
     auto SEW = vtype_SEW(vtype);
-    const int32_t micro_vlmax = vtype_VLMAX(vtype, true);
-    auto offset = ((microIdx % %(ext_div)d) * micro_vlmax) / %(ext_div)d;
+    auto offset = (VLEN / SEW) * (microIdx % %(ext_div)d);
     switch (SEW / %(ext_div)d) {
       case 8: {
         using vext  [[maybe_unused]] = int8_t;
@@ -504,7 +503,7 @@ private:
 public:
     %(class_name)s(ExtMachInst _machInst);
     std::string generateDisassembly(Addr pc,
-        const loader::SymbolTable *symtab) const
+        const loader::SymbolTable *symtab) const override
     {
         std::stringstream ss;
         ss << mnemonic << ' ' << registerName(destRegIdx(0)) << ", "
@@ -530,7 +529,7 @@ public:
         uint8_t _microVl, uint8_t _microIdx);
     Fault execute(ExecContext* xc, Trace::InstRecord* traceData)const override;
     std::string generateDisassembly(Addr pc,
-        const loader::SymbolTable *symtab) const
+        const loader::SymbolTable *symtab) const override
     {
         std::stringstream ss;
         ss << mnemonic << ' ' << registerName(destRegIdx(0)) << ", "
@@ -551,7 +550,7 @@ Fault
                                   Trace::InstRecord* traceData) const
 {
     using et = ElemType;
-    using vu = decltype(et::v);
+    using vu [[maybe_unused]] = decltype(et::v);
     using ewt = typename double_width<et>::type;
     using vwu = decltype(ewt::v);
 
@@ -994,6 +993,28 @@ Fault
 
 }};
 
+def template VectorFloatNonSplitExecute {{
+
+template <typename ElemType>
+Fault
+%(class_name)s<ElemType>::execute(ExecContext* xc,
+                                    Trace::InstRecord* traceData) const
+{
+    using et = ElemType;
+    using vu = decltype(et::v);
+
+    if (machInst.vill)
+        return std::make_shared<IllegalInstFault>("VILL is set", machInst);
+    %(op_decl)s;
+    %(op_rd)s;
+    %(vm_decl_rd)s;
+    %(code)s;
+    %(op_wb)s;
+    return NoFault;
+}
+
+}};
+
 def template VectorReduceMacroDeclare {{
 
 template<typename ElemType>
@@ -1086,18 +1107,16 @@ Fault
     %(vm_decl_rd)s;
     %(copy_old_vd)s;
 
-    Vd[0] = this->microIdx != 0 ? old_Vd[0] : Vs1[0];
-
     auto reduce_loop =
         [&, this](const auto& f, const auto* _, const auto* vs2) {
-            ElemType tmp_val = Vd[0];
+            ElemType microop_result = this->microIdx != 0 ? old_Vd[0] : Vs1[0];;
             for (uint32_t i = 0; i < this->microVl; i++) {
                 uint32_t ei = i + vtype_VLMAX(vtype, true) * this->microIdx;
                 if (this->vm || elem_mask(v0, ei)) {
-                    tmp_val = f(tmp_val, Vs2[i]);
+                    microop_result = f(microop_result, Vs2[i]);
                 }
             }
-            return tmp_val;
+            return microop_result;
         };
 
     %(code)s;
@@ -1128,6 +1147,43 @@ Fault
     auto reduce_loop =
         [&, this](const auto& f, const auto* _, const auto* vs2) {
             vu tmp_val = Vd[0];
+            for (uint32_t i = 0; i < this->microVl; i++) {
+                uint32_t ei = i + vtype_VLMAX(vtype, true) * this->microIdx;
+                if (this->vm || elem_mask(v0, ei)) {
+                    tmp_val = f(tmp_val, Vs2[i]).v;
+                }
+            }
+            return tmp_val;
+        };
+
+    %(code)s;
+    %(op_wb)s;
+    return NoFault;
+}
+
+}};
+
+def template VectorReduceFloatWideningMicroExecute {{
+
+template <typename ElemType>
+Fault
+%(class_name)s<ElemType>::execute(ExecContext* xc,
+                                  Trace::InstRecord* traceData) const
+{
+    %(type_def)s;
+    if (machInst.vill)
+        return std::make_shared<IllegalInstFault>("VILL is set", machInst);
+
+    %(op_decl)s;
+    %(op_rd)s;
+    %(vm_decl_rd)s;
+    %(copy_old_vd)s;
+
+    Vd[0] = this->microIdx != 0 ? old_Vd[0] : Vs1[0];
+
+    auto reduce_loop =
+        [&, this](const auto& f, const auto* _, const auto* vs2) {
+            vwu tmp_val = Vd[0];
             for (uint32_t i = 0; i < this->microVl; i++) {
                 uint32_t ei = i + vtype_VLMAX(vtype, true) * this->microIdx;
                 if (this->vm || elem_mask(v0, ei)) {
