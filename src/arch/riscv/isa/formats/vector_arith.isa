@@ -313,7 +313,7 @@ def format VectorIntNarrowingFormat(code, category, *flags) {{
     header_output = \
         VectorIntWideningMicroDeclare.subst(microiop) + \
         VectorIntWideningMicroConstructor.subst(microiop) + \
-        VectorIntWideningMicroExecute.subst(microiop) + \
+        VectorIntNarrowingMicroExecute.subst(microiop) + \
         VectorIntWideningMacroDeclare.subst(iop) + \
         VectorIntWideningMacroConstructor.subst(iop)
 
@@ -694,7 +694,7 @@ def format VectorFloatNarrowingCvtFormat(code, category, *flags) {{
     header_output = \
         VectorFloatCvtMicroDeclare.subst(microiop) + \
         VectorFloatMicroConstructor.subst(microiop) + \
-        VectorFloatWideningMicroExecute.subst(microiop) + \
+        VectorFloatNarrowingMicroExecute.subst(microiop) + \
         VectorFloatCvtMacroDeclare.subst(iop) + \
         VectorIntWideningMacroConstructor.subst(iop)
 
