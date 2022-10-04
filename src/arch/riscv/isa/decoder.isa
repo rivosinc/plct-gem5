@@ -2241,7 +2241,8 @@ decode QUADRANT default Unknown::unknown() {
                 // VWFUNARY0
                 0x10: decode VS1 {
                     0x00: VectorNonSplitFormat::vfmv_f_s({{
-                        Fd_bits = Vs1_vu[0];
+                        freg_t fd = freg(Vs2_vu[0]);
+                        Fd_bits = fd.v;
                     }}, OPFVV, VectorDummyOp);
                 }
                 0x12: decode VS1 {
